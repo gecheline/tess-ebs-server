@@ -99,8 +99,8 @@ server.wsgi_app = WhiteNoise(server.wsgi_app, root='static/')
 # df = pd.concat([df_ephem, df_eclipse.drop('TIC', axis=1)], axis=1)
 
 # TODO: load the database from static/ with Whitenoise
-df = pd.read_csv('server_df.csv')
-models = pd.read_csv('models_2g_pf.csv')
+df = pd.read_csv('static/server_df.csv')
+models = pd.read_csv('static/models_2g_pf.csv')
 
 fig_lc = go.Figure()
 
