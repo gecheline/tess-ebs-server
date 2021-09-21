@@ -560,8 +560,7 @@ def update_coordinates(xcolumns, xtype, coords_type):
     fig.savefig(buf, format="png")
     # Embed the result in the html output.
     figdata = base64.b64encode(buf.getbuffer()).decode("ascii")
-    return f'data:image/png;base64,{figdata}'
-
+    return 'data:image/png;base64,{}'.format(figdata)
 
 
 if __name__ == '__main__':
