@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import astropy.coordinates as coord
 from astropy import units as u
 import matplotlib.pyplot as plt
+from whitenoise import WhiteNoise
 
 def load_lc(tic):
     url = "http://tessebs.villanova.edu/static/catalog/lcs_ascii/tic"+str(int(tic)).zfill(10)+".01.norm.lc"
@@ -88,6 +89,8 @@ def load_model(tic, model='2g', bins=100):
   
 external_stylesheets = [dbc.themes.SPACELAB]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = app.server
+server.wsgi_app = WhiteNoise(server.wsgi_app, root='static/')
 
 # df_ephem = pd.read_csv('data/ephemerides_clean_morph_09132021.csv')
 # df_eclipse = pd.read_csv('data/eclipse_params_clean_09132021.csv')
@@ -96,8 +99,8 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 # df = pd.concat([df_ephem, df_eclipse.drop('TIC', axis=1)], axis=1)
 
 # TODO: load the database from static/ with Whitenoise
-df = pd.read_csv('static/server_df.csv')
-models = pd.read_csv('static/models_2g_pf.csv')
+df = pd.read_csv('server_df.csv')
+models = pd.read_csv('models_2g_pf.csv')
 
 fig_lc = go.Figure()
 
