@@ -19,25 +19,71 @@ def load_lc(tic):
     lc_data = np.fromstring(lc.text, sep=' ')
     lc_data = lc_data.reshape(int(len(lc_data)/4), 4)
     return pd.DataFrame.from_dict({
-        'times': lc_data[:,0],
-        'phases': lc_data[:,1],
-        'fluxes': lc_data[:,2],
-        'sigmas': lc_data[:,3]
+        'times': lc_data[:,0][::10],
+        'phases': lc_data[:,1][::10],
+        'fluxes': lc_data[:,2][::10],
+        'sigmas': lc_data[:,3][::10]
     })
-  
-def load_model(tic, model='2g'):
+
+def isolate_params_twog(func, model_params):
+    params = {'C': ['C'],
+        'CE': ['C', 'Aell', 'phi0'],
+        'CG': ['C', 'mu1', 'd1', 'sigma1'],
+        'CGE': ['C', 'mu1', 'd1', 'sigma1', 'Aell', 'phi0'],
+        'CG12': ['C', 'mu1', 'd1', 'sigma1', 'mu2', 'd2', 'sigma2'],
+        'CG12E1': ['C', 'mu1', 'd1', 'sigma1', 'mu2', 'd2', 'sigma2', 'Aell'],
+        'CG12E2': ['C', 'mu1', 'd1', 'sigma1', 'mu2', 'd2', 'sigma2', 'Aell']
+        }
+
+    param_vals = np.zeros(len(params[func]))
+    for i,key in enumerate(params[func]):
+        param_vals[i] = model_params[key]
+    
+    return param_vals
+    
+    
+# TODO: make ligeor pip installable and a dependency. Add a static file with model properties
+# compute 2g and pf model on the fly instead of loading it from file
+def load_model(tic, model='2g', bins=100):
+    df_row = models[models['TIC']==tic]
+    
     if model == '2g':
-        filename = 'data/twog_lcs/tic'+str(int(tic)).zfill(10)+'.2g.lc'
+        from ligeor.models import TwoGaussianModel
+        
+        func = df_row['func'].values[0]
+        twog_func = getattr(TwoGaussianModel, func.lower())
+        model_params = {}
+        
+        for key in ['C', 'mu1', 'd1', 'sigma1', 'mu2', 'd2', 'sigma2', 'Aell', 'phi0']:
+            model_params[key] = df_row[key].values[0]
+        param_vals = isolate_params_twog(func, model_params)
+        
+        phases = np.linspace(0,1,bins)
+        fluxes = twog_func(phases, *param_vals)
+
+        return phases, fluxes
+
     elif model == 'pf':
-        filename = 'data/pf_lcs/tic'+str(int(tic)).zfill(10)+'.pf.lc'
+        from ligeor.models import Polyfit
+        phases = np.linspace(0,1,bins)
+        polyfit = Polyfit(phases=phases, 
+                            fluxes=np.ones_like(phases), 
+                            sigmas=0.1*np.ones_like(phases))
+
+        knots = np.array([df_row['k1'].values[0], df_row['k2'].values[0], df_row['k3'].values[0], df_row['k4'].values[0]])
+        coeffs = np.array([df_row['c11'].values[0], df_row['c12'].values[0], df_row['c13'].values[0],
+                               df_row['c21'].values[0], df_row['c22'].values[0], df_row['c23'].values[0],
+                               df_row['c31'].values[0], df_row['c32'].values[0], df_row['c33'].values[0],
+                               df_row['c41'].values[0], df_row['c42'].values[0], df_row['c43'].values[0]]).reshape(4,3)
+        polyfit.fit(knots = knots, coeffs = coeffs)
+        fluxes = polyfit.fv(x = phases)
+        phases[phases > 1] = phases[phases > 1] - 1
+        s = np.argsort(phases)
+        return phases[s], fluxes[s]
+
     else:
         raise NotImplementedError
-    lc = np.loadtxt(filename)
-    phases, fluxes = lc[:,0], lc[:,1]
-    phases[phases < 0] = phases[phases < 0] + 1
-    phases[phases > 1] = phases[phases > 1] - 1
-    s = np.argsort(phases)
-    return phases[s], fluxes[s]
+
 
   
 external_stylesheets = [dbc.themes.SPACELAB]
@@ -48,7 +94,10 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 # catalog = pd.read_csv('data/catalog.csv', delimiter=',')
 
 # df = pd.concat([df_ephem, df_eclipse.drop('TIC', axis=1)], axis=1)
-df = pd.read_csv('data/server_df.csv')
+
+# TODO: load the database from static/ with Whitenoise
+df = pd.read_csv('static/server_df.csv')
+models = pd.read_csv('static/models_2g_pf.csv')
 
 fig_lc = go.Figure()
 
